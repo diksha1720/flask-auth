@@ -33,40 +33,50 @@ def load_user(user_id):
 
 @app.route('/')
 def home():
-    return render_template("index.html")
+    return render_template("index.html", logged_in=current_user.is_authenticated)
 
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        hash = generate_password_hash(request.form.get("password"), method='pbkdf2:sha256', salt_length=8)
-        user = User(email=request.form.get("email"), password=hash, name=request.form.get("name"))
-        db.session.add(user)
-        db.session.commit()
-        login_user(user)
-        return redirect(url_for('secrets'))
+        if User.query.filter_by(email=request.form.get('email')).first():
+            flash("You've already signed up with that email, log in instead!")
+            return redirect(url_for('login'))
+        else:
+            hash = generate_password_hash(request.form.get("password"), method='pbkdf2:sha256', salt_length=8)
+            user = User(email=request.form.get("email"), password=hash, name=request.form.get("name"))
+            db.session.add(user)
+            db.session.commit()
+            login_user(user)
+            return redirect(url_for('secrets'))
     else:
-        return render_template("register.html")
+        return render_template("register.html", logged_in=current_user.is_authenticated)
 
 
 @app.route('/login', methods=['POST', 'GET'])
 def login():
+    error=None
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form.get("email")).first()
         # hash = generate_password_hash(request.form.get("password"), method='pbkdf2:sha256', salt_length=8)
-        if user and check_password_hash(user.password, request.form.get("password")):
-            login_user(user)
-            return redirect(url_for('secrets'))
+        if user:
+            if check_password_hash(user.password, request.form.get("password")):
+                login_user(user)
+                return redirect(url_for('secrets'))
+            else:
+                flash('Password incorrect, please try again.')
+                return redirect(url_for('login'))
         else:
-            return "User Unauthorized"
+            flash("That email does not exist, please try again.")
+            return redirect(url_for('login'))
     else:
-        return render_template("login.html")
+        return render_template("login.html", logged_in=current_user.is_authenticated)
 
 
 @app.route('/secrets')
 @login_required
 def secrets():
-    return render_template('secrets.html',name=current_user.name)
+    return render_template('secrets.html', name=current_user.name,  logged_in=True)
 
 
 @app.route('/download')
